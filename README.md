@@ -46,57 +46,23 @@ Or manually:
 node main.js
 ```
 
-## The Bug Demonstrated
+This should yield:
 
-This example demonstrates a specific issue with `cdylib` compilation for the `wasm32-unknown-emscripten` target:
-
-### Issue 1: cdylib fails to compile
-When building a Rust `cdylib` for `wasm32-unknown-emscripten`, the build fails with:
 ```
-wasm-ld: error: ... undefined symbol: main
+node main.js
+//this-repo/main.js:4572
+  function __ZN102_$LT$std..panicking..begin_panic_handler..FormatStringPayload$u20$as$u20$core..panic..PanicPayload$GT$3get17hecee4b43e7ecbd58E(...args
+                          ^
+
+SyntaxError: Unexpected token '.'
+    at wrapSafe (node:internal/modules/cjs/loader:1281:20)
+    at Module._compile (node:internal/modules/cjs/loader:1321:27)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1416:10)
+    at Module.load (node:internal/modules/cjs/loader:1208:32)
+    at Module._load (node:internal/modules/cjs/loader:1024:12)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:174:12)
+    at node:internal/main/run_main_module:28:49
+
+Node.js v20.15.1
+make: *** [test] Error 1
 ```
-
-This occurs because Emscripten expects a standalone executable but we're trying to create a library.
-
-### Issue 2: Missing Rust Standard Library Symbols
-Even when we extract the individual object files and try to link them manually with C++, we get undefined symbol errors for Rust standard library functions:
-
-- `std::io::stdio::_print::h8e461f7443ba4911` (println! macro)
-- `core::panicking::panic_cannot_unwind::h7720a7e27993209d` (panic handling)
-- `core::ffi::c_str::CStr::to_str::hd65a8640f2e814a1` (C string conversion)
-- `core::panicking::panic_fmt::h51f7a7a0a47b752b` (panic formatting)
-
-These symbols would normally be included when linking the complete Rust standard library, but are missing when trying to create a `cdylib` for WebAssembly/Emscripten.
-
-## Reproducing the Bug
-
-```bash
-make test
-```
-
-This will:
-1. Attempt to build the Rust `cdylib` (fails as expected)
-2. Extract the generated object files
-3. Try to link them with C++ code (fails with missing symbols)
-
-## Expected vs Actual Behavior
-
-**Expected**: The `cdylib` should compile successfully and be linkable with C++ code, including all necessary Rust standard library symbols for panic handling and I/O.
-
-**Actual**: The compilation fails, and even manual linking of object files results in missing standard library symbols.
-
-## Summary
-
-This minimal example successfully reproduces the emsdk-rust-dylib bug where:
-
-1. **`cdylib` compilation fails** for `wasm32-unknown-emscripten` target due to missing `main` symbol
-2. **Manual object file linking fails** due to missing Rust standard library symbols
-3. **Panic-related symbols are missing** which prevents proper error handling in the linked code
-
-The bug prevents the normal workflow of creating a Rust dynamic library that can be consumed by C++/Emscripten projects, forcing developers to use workarounds or alternative approaches.
-
-## Files Generated
-
-- Individual Rust object files in `target/wasm32-unknown-emscripten/debug/deps/`
-- Error logs showing the missing symbols
-- No successful final executable due to the bug
